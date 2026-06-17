@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Download, Loading } from '@element-plus/icons-vue'
 import { usePhotoFrame } from '../composables/usePhotoFrame'
 import { templates } from '../templates'
@@ -20,15 +20,62 @@ const {
 
 const canvasContainer = ref<HTMLDivElement | null>(null)
 const selectedTemplateId = ref<string | null>(null)
+let resizeObserver: ResizeObserver | null = null
 
-// 监听 canvas 变化，渲染到 DOM
+/**
+ * 根据容器实际尺寸，强制计算并设置 Canvas 的 CSS 显示尺寸（contain 模式）
+ */
+function fitCanvasToContainer() {
+    const canvas = previewCanvas.value
+    const container = canvasContainer.value
+    if (!canvas || !container) return
+
+    // 获取容器的实际像素尺寸
+    const w = container.clientWidth
+    const h = container.clientHeight
+    if (!w || !h) return
+
+    const imgWidth = canvas.width
+    const imgHeight = canvas.height
+
+    // 计算缩放比例，确保图片完整显示（相当于 CSS object-fit: contain）
+    const scaleX = w / imgWidth
+    const scaleY = h / imgHeight
+    const scale = Math.min(scaleX, scaleY)
+
+    // 计算显示尺寸
+    canvas.style.width = `${Math.floor(imgWidth * scale)}px`
+    canvas.style.height = `${Math.floor(imgHeight * scale)}px`
+    canvas.style.maxWidth = 'none'
+    canvas.style.maxHeight = 'none'
+}
+
+// 监听 canvas 变化，渲染到 DOM 并启动 ResizeObserver
 watch(previewCanvas, async (canvas) => {
     if (canvas && canvasContainer.value) {
         await nextTick()
         canvasContainer.value.innerHTML = ''
-        canvas.style.maxWidth = '100%'
-        canvas.style.height = 'auto'
+        canvas.style.display = 'block'
         canvasContainer.value.appendChild(canvas)
+
+        // 启动 ResizeObserver 监听容器尺寸变化
+        if (!resizeObserver) {
+            resizeObserver = new ResizeObserver(() => {
+                fitCanvasToContainer()
+            })
+            resizeObserver.observe(canvasContainer.value)
+        }
+
+        // 初始计算一次
+        await nextTick()
+        fitCanvasToContainer()
+    }
+})
+
+onBeforeUnmount(() => {
+    if (resizeObserver) {
+        resizeObserver.disconnect()
+        resizeObserver = null
     }
 })
 
@@ -160,30 +207,38 @@ function onReset() {
 .app-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 32px 24px;
+    padding: 24px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .app-header {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
+    flex-shrink: 0;
 }
 
 .app-title {
-    font-size: 32px;
+    font-size: 28px;
     color: var(--text-h);
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
 }
 
 .app-subtitle {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text);
     margin: 0;
 }
 
 .app-main {
+    flex: 1;
     display: grid;
-    grid-template-columns: 400px 1fr;
-    gap: 32px;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    min-height: 0;
 }
 
 @media (max-width: 1024px) {
@@ -198,6 +253,9 @@ function onReset() {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .upload-section {
@@ -248,13 +306,13 @@ function onReset() {
 }
 
 .preview-placeholder {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 400px;
     border: 2px dashed var(--border);
     border-radius: 8px;
-    margin-bottom: 24px;
+    min-height: 0;
 }
 
 .preview-placeholder p {
@@ -263,16 +321,34 @@ function onReset() {
 }
 
 .canvas-container {
-    margin-bottom: 24px;
-    border-radius: 8px;
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
     overflow: hidden;
-    background: var(--bg);
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.canvas-container canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    display: block;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    object-fit: contain;
+    margin: auto;
 }
 
 .preview-actions {
     display: flex;
     gap: 12px;
     justify-content: center;
+    flex-shrink: 0;
+    padding: 16px 0 0;
 }
 
 .rendering-overlay {
@@ -288,5 +364,14 @@ function onReset() {
     justify-content: center;
     color: white;
     z-index: 1000;
+}
+
+.preview-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 16px;
+    padding: 0 10px;
 }
 </style>

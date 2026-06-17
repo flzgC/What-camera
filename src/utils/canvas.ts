@@ -14,44 +14,9 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * 将图片适配到目标区域（保持比例，居中裁剪/填充）
- */
-function fitImage(
-    img: HTMLImageElement,
-    targetX: number,
-    targetY: number,
-    targetW: number,
-    targetH: number
-) {
-    const imgRatio = img.width / img.height
-    const targetRatio = targetW / targetH
-
-    let drawX: number
-    let drawY: number
-    let drawW: number
-    let drawH: number
-
-    if (imgRatio > targetRatio) {
-        // 图片更宽，按高度适配
-        drawH = targetH
-        drawW = drawH * imgRatio
-        drawX = targetX + (targetW - drawW) / 2
-        drawY = targetY
-    } else {
-        // 图片更高，按宽度适配
-        drawW = targetW
-        drawH = drawW / imgRatio
-        drawX = targetX
-        drawY = targetY + (targetH - drawH) / 2
-    }
-
-    return { drawX, drawY, drawW, drawH }
-}
-
-/**
- * 渲染相框到 Canvas
+ * 渲染相框到 Canvas（自适应横向/纵向照片）
  * @param imageFile 用户选择的图片文件
- * @param template 选中的模板
+ * @param template 选中的模板（用于样式参考）
  * @param meta EXIF 元数据
  * @returns 渲染完成的 Canvas 元素
  */
@@ -60,9 +25,53 @@ export async function renderFrame(
     template: Template,
     meta: PhotoMeta
 ): Promise<HTMLCanvasElement> {
+    const imageUrl = URL.createObjectURL(imageFile)
+    let img: HTMLImageElement
+
+    try {
+        img = await loadImage(imageUrl)
+    } finally {
+        URL.revokeObjectURL(imageUrl)
+    }
+
+    // 判断照片方向
+    const isPortrait = img.height > img.width
+
+    // 信息栏尺寸
+    const barSize = 100 // 信息栏尺寸
+    const padding = 20  // 信息栏内边距
+
+    let canvasWidth: number
+    let canvasHeight: number
+    let imageX: number
+    let imageY: number
+    let barX: number
+    let barWidth: number
+    let barHeight: number
+
+    if (isPortrait) {
+        // 纵向照片：信息栏在右侧
+        canvasWidth = img.width + barSize
+        canvasHeight = img.height
+        imageX = 0
+        imageY = 0
+        barX = img.width
+        barWidth = barSize
+        barHeight = canvasHeight
+    } else {
+        // 横向照片：信息栏在底部
+        canvasWidth = img.width
+        canvasHeight = img.height + barSize
+        imageX = 0
+        imageY = 0
+        barX = 0
+        barWidth = canvasWidth
+        barHeight = barSize
+    }
+
     const canvas = document.createElement('canvas')
-    canvas.width = template.width
-    canvas.height = template.height
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
 
     const ctx = canvas.getContext('2d')!
     if (!ctx) {
@@ -73,69 +82,100 @@ export async function renderFrame(
     ctx.fillStyle = template.background
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // 2. 加载并绘制图片
-    const imageUrl = URL.createObjectURL(imageFile)
-    try {
-        const img = await loadImage(imageUrl)
-
-        const { drawX, drawY, drawW, drawH } = fitImage(
-            img,
-            template.layout.image.x,
-            template.layout.image.y,
-            template.layout.image.width,
-            template.layout.image.height
-        )
-
-        // 可选：绘制阴影效果
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)'
-        ctx.shadowBlur = 20
-        ctx.shadowOffsetX = 0
-        ctx.shadowOffsetY = 4
-        ctx.drawImage(img, drawX, drawY, drawW, drawH)
-        ctx.shadowColor = 'transparent'
-    } finally {
-        URL.revokeObjectURL(imageUrl)
-    }
+    // 2. 绘制图片（原始尺寸，不裁剪）
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)'
+    ctx.shadowBlur = 20
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 4
+    ctx.drawImage(img, imageX, imageY, img.width, img.height)
+    ctx.shadowColor = 'transparent'
 
     // 3. 绘制边框
     if (template.frame.borderWidth > 0) {
         ctx.strokeStyle = template.frame.borderColor
         ctx.lineWidth = template.frame.borderWidth
         ctx.strokeRect(
-            template.layout.image.x - template.frame.borderWidth / 2,
-            template.layout.image.y - template.frame.borderWidth / 2,
-            template.layout.image.width + template.frame.borderWidth,
-            template.layout.image.height + template.frame.borderWidth
+            imageX - template.frame.borderWidth / 2,
+            imageY - template.frame.borderWidth / 2,
+            img.width + template.frame.borderWidth,
+            img.height + template.frame.borderWidth
         )
     }
 
-    // 4. 绘制文字块
-    for (const block of template.layout.textBlocks) {
-        let value = ''
+    // 4. 绘制文字块（自适应布局）
+    const textBlocks = template.layout.textBlocks
+    if (isPortrait) {
+        // 纵向：文字从上到下排列在右侧信息栏
+        let currentY = padding + 10
 
-        // 特殊处理：如果是 make, 尝试合并 make 和 model
-        if (block.key === 'make') {
-            const parts: string[] = []
-            if (meta.make) parts.push(meta.make)
-            if (meta.model) parts.push(meta.model)
-            value = parts.join(' ') || ''
-        } else {
-            const raw = meta[block.key]
-            if (raw !== undefined) {
-                value = String(raw)
+        for (const block of textBlocks) {
+            let value = ''
+            if (block.key === 'make') {
+                const parts: string[] = []
+                if (meta.make) parts.push(meta.make)
+                if (meta.model) parts.push(meta.model)
+                value = parts.join(' ') || ''
+            } else {
+                const raw = meta[block.key]
+                if (raw !== undefined) {
+                    value = String(raw)
+                }
             }
+
+            if (!value) continue
+
+            const label = block.label ? `${block.label}: ` : ''
+            const fontStyle = block.fontStyle || 'normal'
+            const fontWeight = block.fontWeight || 400
+
+            // 缩小字体以适应横向信息栏
+            const fontSize = Math.min(block.fontSize, barWidth - padding * 2 - 10)
+            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px system-ui, sans-serif`
+            ctx.fillStyle = block.color
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
+
+            // 检查是否会超出底部
+            if (currentY + fontSize > barHeight - padding) {
+                break
+            }
+
+            ctx.fillText(label, barX + barWidth / 2, currentY)
+            ctx.fillText(value, barX + barWidth / 2, currentY + fontSize + 2)
+
+            currentY += (fontSize + 2) * 2 + 15
         }
+    } else {
+        // 横向：保持底部布局
+        for (const block of textBlocks) {
+            let value = ''
 
-        if (!value) continue
+            if (block.key === 'make') {
+                const parts: string[] = []
+                if (meta.make) parts.push(meta.make)
+                if (meta.model) parts.push(meta.model)
+                value = parts.join(' ') || ''
+            } else {
+                const raw = meta[block.key]
+                if (raw !== undefined) {
+                    value = String(raw)
+                }
+            }
 
-        const label = block.label ? `${block.label}: ` : ''
-        const fontStyle = block.fontStyle || 'normal'
-        const fontWeight = block.fontWeight || 400
-        ctx.font = `${fontStyle} ${fontWeight} ${block.fontSize}px system-ui, sans-serif`
-        ctx.fillStyle = block.color
-        ctx.textAlign = block.textAlign || 'left'
-        ctx.textBaseline = 'top'
-        ctx.fillText(`${label}${value}`, block.x, block.y)
+            if (!value) continue
+
+            const label = block.label ? `${block.label}: ` : ''
+            const fontStyle = block.fontStyle || 'normal'
+            const fontWeight = block.fontWeight || 400
+            ctx.font = `${fontStyle} ${fontWeight} ${block.fontSize}px system-ui, sans-serif`
+            ctx.fillStyle = block.color
+            ctx.textAlign = block.textAlign || 'left'
+            ctx.textBaseline = 'top'
+
+            // 计算Y坐标：模板原始Y坐标 + 底部信息栏偏移
+            const yOffset = img.height - template.layout.image.height
+            ctx.fillText(`${label}${value}`, block.x, block.y + yOffset)
+        }
     }
 
     return canvas

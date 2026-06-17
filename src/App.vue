@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Download, Loading } from '@element-plus/icons-vue'
 import { usePhotoFrame } from './composables/usePhotoFrame'
 import { templates } from './templates'
@@ -20,15 +20,60 @@ const {
 
 const canvasContainer = ref<HTMLDivElement | null>(null)
 const selectedTemplateId = ref<string | null>(null)
+let resizeObserver: ResizeObserver | null = null
 
 watch(previewCanvas, async (canvas) => {
   if (canvas && canvasContainer.value) {
     await nextTick()
     canvasContainer.value.innerHTML = ''
-    canvas.style.maxWidth = '100%'
-    canvas.style.height = 'auto'
-    canvasContainer.value.appendChild(canvas)
+
+    // 创建一个 wrapper 层，用来锁死最大可视尺寸
+    const wrapper = document.createElement('div')
+    wrapper.className = 'canvas-wrapper'
+
+    // 强制清除 canvas 样式，将控制权完全交给 JS
+    canvas.removeAttribute('style')
+    canvas.style.display = 'block'
+
+    wrapper.appendChild(canvas)
+    canvasContainer.value.appendChild(wrapper)
+
+    // 立刻算一遍尺寸
+    constrainCanvas(wrapper, canvas)
+
+    // 只要容器尺寸发生变化（含窗口缩放），自动重算
+    const obs = new ResizeObserver(() => constrainCanvas(wrapper, canvas))
+    obs.observe(canvasContainer.value)
   }
+})
+
+/**
+ * 严格约束 Canvas 的尺寸
+ * 通过数学比例计算，将其 CSS width/height 严格限制在 wrapper 范围内
+ */
+function constrainCanvas(wrapper: HTMLElement, canvas: HTMLCanvasElement) {
+  const maxW = wrapper.clientWidth
+  const maxH = wrapper.clientHeight
+  if (!maxW || !maxH) return
+
+  const imgRatio = canvas.width / canvas.height
+  const wrapRatio = maxW / maxH
+
+  let w: number, h: number
+  if (imgRatio > wrapRatio) {
+    w = maxW
+    h = maxW / imgRatio
+  } else {
+    h = maxH
+    w = maxH * imgRatio
+  }
+
+  canvas.style.width = `${Math.floor(w)}px`
+  canvas.style.height = `${Math.floor(h)}px`
+}
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
 })
 
 async function onSelectTemplate(template: typeof templates[number]) {
@@ -158,23 +203,29 @@ function onReset() {
 .app-container {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 48px 56px;
+  padding: 32px 40px 20px;
   position: relative;
   z-index: 1;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .app-header {
   text-align: center;
-  margin-bottom: 56px;
-  padding: 24px 0;
+  margin-bottom: 24px;
+  padding: 16px 0;
+  flex-shrink: 0;
 }
 
 .app-title {
   font-family: var(--heading);
-  font-size: 38px;
+  font-size: 36px;
   font-weight: 300;
   letter-spacing: 4px;
-  margin: 0 0 14px 0;
+  margin: 0 0 10px 0;
   color: var(--text-h);
 }
 
@@ -191,15 +242,17 @@ function onReset() {
   width: 40px;
   height: 1px;
   background: var(--accent);
-  margin: 20px auto 0;
+  margin: 16px auto 0;
   opacity: 0.6;
 }
 
 .app-main {
+  flex: 1;
   display: grid;
   grid-template-columns: 380px 1fr;
-  gap: 48px;
-  align-items: start;
+  gap: 32px;
+  min-height: 0;
+  align-items: stretch;
 }
 
 @media (max-width: 1200px) {
@@ -222,10 +275,16 @@ function onReset() {
   background: var(--gradient-card);
   border: 1px solid var(--border-light);
   border-radius: 0;
-  padding: 32px;
+  padding: 28px 24px;
   position: relative;
   overflow: hidden;
-  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-left {
+  overflow-y: auto;
 }
 
 .panel-left::before,
@@ -317,11 +376,12 @@ function onReset() {
 }
 
 .preview-placeholder {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 420px;
+  min-height: 0;
   border: 1px solid var(--border-light);
   background: var(--bg);
 }
@@ -342,25 +402,44 @@ function onReset() {
 }
 
 .preview-content {
-  margin-bottom: 24px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
 .canvas-container {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: var(--bg-subtle);
-  padding: 16px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  align-items: flex-start;
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.canvas-wrapper {
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .canvas-container img,
 .canvas-container canvas {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  display: block;
+  object-fit: contain;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .preview-actions {

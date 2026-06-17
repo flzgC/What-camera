@@ -26,8 +26,10 @@ const previewMeta = {
  * 渲染模板预览图到 canvas
  */
 async function renderTemplatePreview(canvas: HTMLCanvasElement, template: Template) {
-    const scale = canvas.width / template.width
-    canvas.width = template.width * scale
+    const targetWidth = 200
+    const scale = targetWidth / template.width
+
+    canvas.width = targetWidth
     canvas.height = template.height * scale
 
     const ctx = canvas.getContext('2d')!
@@ -133,37 +135,50 @@ function renderAllPreviews() {
 
 <style scoped>
 .template-selector {
-    margin-top: 24px;
+    margin-top: 32px;
 }
 
 .section-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-h);
+    font-family: var(--heading);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: var(--text-muted);
     margin-bottom: 16px;
+    text-transform: uppercase;
 }
 
 .template-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
 }
 
 .template-card {
-    border: 2px solid var(--border);
-    border-radius: 8px;
+    position: relative;
+    border: 1px solid var(--border-light);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     overflow: hidden;
+    background: var(--bg);
 }
 
 .template-card:hover {
-    border-color: var(--accent);
+    border-color: var(--border-accent);
 }
 
 .template-card.active {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-bg);
+    border-color: var(--text-h);
+}
+
+.template-card.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--text-h);
 }
 
 .template-preview-wrapper {
@@ -175,14 +190,23 @@ function renderAllPreviews() {
     width: 100%;
     aspect-ratio: 7 / 5;
     display: block;
+    background: var(--bg-subtle);
 }
 
 .template-label {
-    padding: 8px;
-    font-size: 14px;
-    text-align: center;
+    padding: 8px 10px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-align: left;
     background: var(--bg);
-    color: var(--text);
-    font-weight: 500;
+    color: var(--text-secondary);
+    font-weight: 400;
+    text-transform: uppercase;
+    border-top: 1px solid var(--border-light);
+    transition: all 0.2s ease;
+}
+
+.template-card:hover .template-label {
+    color: var(--text-h);
 }
 </style>

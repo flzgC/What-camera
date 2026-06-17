@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import PhotoFrameApp from './components/PreviewCanvas.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <PhotoFrameApp />
 </template>

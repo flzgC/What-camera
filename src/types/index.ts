@@ -50,6 +50,7 @@ export interface Template {
             fontSize: number
             color: string
             fontWeight?: number
+            fontStyle?: 'normal' | 'italic'
             textAlign?: CanvasTextAlign
         }>
     }

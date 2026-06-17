@@ -129,8 +129,9 @@ export async function renderFrame(
         if (!value) continue
 
         const label = block.label ? `${block.label}: ` : ''
-
-        ctx.font = `${block.fontWeight || 400} ${block.fontSize}px system-ui, sans-serif`
+        const fontStyle = block.fontStyle || 'normal'
+        const fontWeight = block.fontWeight || 400
+        ctx.font = `${fontStyle} ${fontWeight} ${block.fontSize}px system-ui, sans-serif`
         ctx.fillStyle = block.color
         ctx.textAlign = block.textAlign || 'left'
         ctx.textBaseline = 'top'

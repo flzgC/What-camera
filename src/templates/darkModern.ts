@@ -31,39 +31,32 @@ export const darkModern: Template = {
                 key: 'make',
                 x: 80,
                 y: 860,
-                fontSize: 22,
+                fontSize: 28,
                 color: '#FFFFFF',
-                fontWeight: 600,
-                textAlign: 'left'
-            },
-            {
-                key: 'focalLength',
-                x: 80,
-                y: 910,
-                fontSize: 16,
-                color: '#AAAAAA',
-                textAlign: 'left'
+                fontWeight: 700,
+                fontStyle: 'italic',
+                textAlign: 'center'
             },
             {
                 key: 'exposureTime',
-                x: 400,
-                y: 910,
-                fontSize: 16,
-                color: '#AAAAAA',
-                textAlign: 'left'
-            },
-            {
-                key: 'fNumber',
-                x: 720,
-                y: 910,
+                x: 250,
+                y: 920,
                 fontSize: 16,
                 color: '#AAAAAA',
                 textAlign: 'left'
             },
             {
                 key: 'iso',
-                x: 1040,
-                y: 910,
+                x: 500,
+                y: 920,
+                fontSize: 16,
+                color: '#AAAAAA',
+                textAlign: 'left'
+            },
+            {
+                key: 'fNumber',
+                x: 750,
+                y: 920,
                 fontSize: 16,
                 color: '#AAAAAA',
                 textAlign: 'left'
